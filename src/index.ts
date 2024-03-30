@@ -1,3 +1,5 @@
+import * as dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import { ExtractorService } from './services/extractor.service';
 import { PriceService } from './services/price.service';

@@ -1,8 +1,7 @@
 import { CreationAttributes } from 'sequelize';
 import { Transaction } from '../model/transaction.model';
-import { ExtractorService, ITransaction } from './extractor.service';
+import { ExtractorService, ISwapTransaction } from './extractor.service';
 import { PriceService } from './price.service';
-import sequelize from '../db';
 
 export class RecordService {
   static singleton: RecordService;
@@ -11,9 +10,8 @@ export class RecordService {
     readonly extractorService: ExtractorService,
     readonly priceService: PriceService,
   ) {
-    sequelize.addModels([Transaction]);
-    const everyFiveMinutes = 1000 * 60 * 5;
-    setInterval(() => this.poll(), everyFiveMinutes); // using setInterval to poll every 5 minutes
+    // const everyFiveMinutes = 1000 * 60 * 1;
+    // setInterval(() => this.poll(), everyFiveMinutes); // using setInterval to poll every 5 minutes
   }
 
   static getSingleton(): RecordService {
@@ -53,13 +51,12 @@ export class RecordService {
     await this.batchInsertTransactions(transactionsWithFee);
   }
 
-  async mapTransactionsWithFee(transactions: ITransaction[]) {
+  async mapTransactionsWithFee(transactions: ISwapTransaction[]) {
     if(!transactions.length) return []
 
     // we are assuming all transactions within same time frame. Hence, We do not need to keep fetching the eth-usd price for each transactions
    const timeStamp = transactions[0].timeStamp;
-   const ethUsdRate = await PriceService.getSingleton().getEthUsdRate(timeStamp);
-   console.log({ethUsdRate});
+   const ethUsdRate = await this.priceService.getEthUsdRate(timeStamp);
 
    const transactionsWithFee = transactions.map(transaction => {
      const fee = this.extractorService.calculateFee(transaction, ethUsdRate);
@@ -88,8 +85,7 @@ export class RecordService {
 
   async batchInsertTransactions(transactions: CreationAttributes<Transaction>[]): Promise<void> {
     try {
-      await Transaction.bulkCreate(transactions);
-      console.log('Transactions inserted successfully');
+      await Transaction.bulkCreate(transactions, { ignoreDuplicates: true });
     } catch (error) {
       console.error({
         message: 'batchInsertTransactionsError',
@@ -97,5 +93,32 @@ export class RecordService {
       });
       throw 'BATCH_INSERT_TRANSACTIONS_ERROR';
     }
+  }
+
+  async getTransactionFee(hash: string) {
+    const transaction = await Transaction.findOne({
+      where: { hash },
+      attributes: ['fee'],
+    });
+    if (transaction) return transaction.fee;
+
+    return this.getTransactionFeeFromApi(hash);
+  }
+
+  async getTransactionFeeFromApi(hash: string) {
+    const internalTransactions = await this.extractorService.fetchTxByHash(hash);
+    if (!internalTransactions.length) {
+      throw 'TRANSACTION_NOT_FOUND';
+    }
+    const internalTransaction  = internalTransactions[0];
+    if (internalTransaction.isError !== '0') {
+      throw 'TRANSACTION_FAILED'
+    }
+
+    const startBlock = Number(internalTransaction.blockNumber);
+    const endBlock = startBlock + 1;
+    const transferTransactions = await this.extractorService.fetchTxs(startBlock, endBlock);
+    const transactionsWithFee = await this.mapTransactionsWithFee(transferTransactions);
+    return transactionsWithFee.find(tx => tx.hash === hash)!.fee;
   }
 }

@@ -2,7 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 import { ethers } from 'ethers';
 import { config } from '../../config/config';
 
-export interface ITransaction {
+export interface ISwapTransaction {
   blockNumber: string,
   timeStamp: string,
   hash: string,
@@ -22,6 +22,21 @@ export interface ITransaction {
   cumulativeGasUsed: string,
   input: string,
   confirmations: string,
+}
+
+export interface IInternalTransaction {
+  blockNumber: string
+  timeStamp: string
+  from: string
+  to: string
+  value: string
+  contractAddress: string
+  input: string
+  type: string
+  gas: string
+  gasUsed: string
+  isError: string
+  errCode: string
 }
 
 export class ExtractorService {
@@ -46,16 +61,32 @@ export class ExtractorService {
     return ExtractorService.singleton;
   }
 
-  handleFailedResponse(response: any) {
-    if (!response.message.startsWith('OK')) {
-      throw response.data.message;
+  async fetchTxByHash(hash: string) {
+    try {
+      const res = await this.client.get<{ message: string, result: IInternalTransaction[] }>(`?module=account&action=txlistinternal&txhash=${hash}&apikey=${this.apiKey}`);
+      if (!res.data.message.startsWith('OK')) return [];
+      const transactions = res.data.result;
+
+      console.log({
+        message: 'fetchTxByHash',
+        details: { transactionLength: transactions.length, hash }
+      });
+
+      return transactions;
+    } catch (error: any) {
+      console.error({
+        message: 'fetchTxByHashError',
+        details: { hash },
+        error,
+      });
+      throw 'FETCH_TX_BY_HASH_ERROR'
     }
   }
 
   async fetchTxs(startBlock: number, endBlock: number) {
     try {
-      const res = await this.client.get<{ message: string, result: ITransaction[] }>(`?module=account&action=tokentx&address=${this.uniswapUsdcAddress}&startblock=${startBlock}&endblock=${endBlock}`);
-      this.handleFailedResponse(res.data);
+      const res = await this.client.get<{ message: string, result: ISwapTransaction[] }>(`?module=account&action=tokentx&address=${this.uniswapUsdcAddress}&startblock=${startBlock}&endblock=${endBlock}&apikey=${this.apiKey}`);
+      if (!res.data.message.startsWith('OK')) return [];
       const transactions = res.data.result?.filter(tx => tx.tokenSymbol === 'WETH'); // we do not need the 2 transactions
 
       console.log({
@@ -77,7 +108,6 @@ export class ExtractorService {
   async fetchLatestBlockNumber(): Promise<number> {
     try {
       const res = await this.client.get<{ result: string }>(`?module=proxy&action=eth_blockNumber`);
-      this.handleFailedResponse(res.data);
 
       const blockNumber = ethers.BigNumber.from(res.data.result).toNumber();
 
@@ -96,7 +126,7 @@ export class ExtractorService {
     }
   }
 
-  calculateFee(transaction: ITransaction, ethUsdRate: number) {
+  calculateFee(transaction: ISwapTransaction, ethUsdRate: number) {
     const gasPrice = parseFloat(ethers.utils.formatEther(transaction.gasPrice));
     const gasUsed = parseFloat(transaction.gasUsed);
 
@@ -106,6 +136,21 @@ export class ExtractorService {
     console.log({
       message: 'calculateFee',
       details: { usdtFee, ethFee, ethUsdRate, hash: transaction.hash }
+    });
+
+    return usdtFee.toFixed(2);
+  }
+
+  calculateFeeIsh(transaction: IInternalTransaction, ethUsdRate: number) {
+    const gasPrice = parseFloat(ethers.utils.formatEther(transaction.gas));
+    const gasUsed = parseFloat(transaction.gasUsed);
+
+    const ethFee = gasPrice * gasUsed;
+    const usdtFee = ethFee * ethUsdRate;
+
+    console.log({
+      message: 'calculateFee',
+      details: { usdtFee, ethFee, ethUsdRate, blockNumber: transaction.blockNumber }
     });
 
     return usdtFee.toFixed(2);
