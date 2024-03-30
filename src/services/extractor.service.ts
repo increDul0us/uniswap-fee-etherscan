@@ -48,8 +48,8 @@ export class ExtractorService {
 
   async fetchTxs(startBlock: number, endBlock: number) {
     try {
-      const res = await this.client.get<{ result: ITransaction[] }>(`?module=account&action=tokentx&address=${this.uniswapUsdcAddress}&startblock=${startBlock}&endblock=${endBlock}&sort=asc`);
-      const transactions = res.data.result;
+      const res = await this.client.get<{ result: ITransaction[] }>(`?module=account&action=tokentx&address=${this.uniswapUsdcAddress}&startblock=${startBlock}&endblock=${endBlock}`);
+      const transactions = res.data.result?.filter(tx => tx.tokenSymbol === 'WETH'); // we do not need the 2 transactions
 
       console.log({
         message: 'fetchTxs',

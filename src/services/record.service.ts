@@ -1,5 +1,8 @@
+import { CreationAttributes } from 'sequelize';
+import { Transaction } from '../model/transaction.model';
 import { ExtractorService, ITransaction } from './extractor.service';
 import { PriceService } from './price.service';
+import sequelize from '../db';
 
 export class RecordService {
   static singleton: RecordService;
@@ -8,6 +11,7 @@ export class RecordService {
     readonly extractorService: ExtractorService,
     readonly priceService: PriceService,
   ) {
+    sequelize.addModels([Transaction]);
     const everyFiveMinutes = 1000 * 60 * 5;
     setInterval(() => this.poll(), everyFiveMinutes); // using setInterval to poll every 5 minutes
   }
@@ -40,17 +44,17 @@ export class RecordService {
   }
   
   async poll() {
-    const latestSavedBlockNumber = null; // todo: fetch from db
+    const latestSavedBlockNumber = await this.getLatestSavedBlockNumber()
     const latestBlockNumber = await this.extractorService.fetchLatestBlockNumber();
     const startBlock = latestSavedBlockNumber ?? latestBlockNumber - 10 ;
 
     const transactions = await this.extractorService.fetchTxs(19545093, 19545103);
     const transactionsWithFee = await this.mapTransactionsWithFee(transactions);
-    // todo: batch transactionsWithFee data to db
+    await this.batchInsertTransactions(transactionsWithFee);
   }
 
   async mapTransactionsWithFee(transactions: ITransaction[]) {
-    if(!transactions.length) return transactions
+    if(!transactions.length) return []
 
     // we are assuming all transactions within same time frame. Hence, We do not need to keep fetching the eth-usd price for each transactions
    const timeStamp = transactions[0].timeStamp;
@@ -63,5 +67,35 @@ export class RecordService {
    });
 
    return transactionsWithFee;
+  }
+
+  async getLatestSavedBlockNumber(): Promise<number | null> {
+    try {
+      const latestTransaction = await Transaction.findOne({
+        order: [['blockNumber', 'DESC']],
+        attributes: ['blockNumber'],
+      });
+
+      return latestTransaction ? parseInt(latestTransaction.blockNumber) : null;
+    } catch (error) {
+      console.error({
+        message: 'getLatestSavedBlockNumberError',
+        error,
+      });
+      throw 'GET_LATEST_SAVED_BLOCK_NUMBER_ERROR';
+    }
+  }
+
+  async batchInsertTransactions(transactions: CreationAttributes<Transaction>[]): Promise<void> {
+    try {
+      await Transaction.bulkCreate(transactions);
+      console.log('Transactions inserted successfully');
+    } catch (error) {
+      console.error({
+        message: 'batchInsertTransactionsError',
+        error,
+      });
+      throw 'BATCH_INSERT_TRANSACTIONS_ERROR';
+    }
   }
 }
