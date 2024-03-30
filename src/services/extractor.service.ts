@@ -1,7 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import { ethers } from 'ethers';
 import { config } from '../../config/config';
-import { PriceService } from './price.service';
 
 export interface ITransaction {
   blockNumber: string,
@@ -50,11 +49,21 @@ export class ExtractorService {
   async fetchTxs(startBlock: number, endBlock: number) {
     try {
       const res = await this.client.get<{ result: ITransaction[] }>(`?module=account&action=tokentx&address=${this.uniswapUsdcAddress}&startblock=${startBlock}&endblock=${endBlock}&sort=asc`);
-  
       const transactions = res.data.result;
+
+      console.log({
+        message: 'fetchTxs',
+        details: { transactionLength: transactions.length, startBlock, endBlock }
+      });
+
       return transactions;
     } catch (error: any) {
-      throw 'ERROR_FETCH_TXS'
+      console.error({
+        message: 'fetchTxsError',
+        details: { startBlock, endBlock },
+        error,
+      });
+      throw 'FETCH_TXS_ERROR'
     }
   }
 
@@ -62,24 +71,35 @@ export class ExtractorService {
     try {
       const res = await this.client.get<{ result: string }>(`?module=proxy&action=eth_blockNumber`);
 
-      const blockNumber = ethers.getNumber(res.data.result);
+      const blockNumber = ethers.BigNumber.from(res.data.result).toNumber();
+
+      console.log({
+        message: 'fetchLatestBlockNumber',
+        details: { blockNumber }
+      });
+
       return blockNumber;
     } catch (error: any) {
-      throw 'ERROR_BLOCK_NUMBER';
+      console.error({
+        message: 'fetchLatestBlockNumberError',
+        error,
+      });
+      throw 'BLOCK_NUMBER_ERROR';
     }
   }
 
-  async calculateFee(transaction: ITransaction, ethUsdPrice?: number) {
-    const price = ethUsdPrice ?? await PriceService.getSingleton().getEthUsdConversionRate(transaction.timeStamp);
-    const gasPrice = parseFloat(transaction.gasPrice);
+  calculateFee(transaction: ITransaction, ethUsdRate: number) {
+    const gasPrice = parseFloat(ethers.utils.formatEther(transaction.gasPrice));
     const gasUsed = parseFloat(transaction.gasUsed);
-    const ethFee = gasPrice * gasUsed;
-    const feeInUsdt = ethFee * price;
-    return feeInUsdt.toFixed(2);
-  }
 
-  async init() {
-    const latestBlock = await this.fetchLatestBlockNumber();
-    return this.fetchTxs(latestBlock - 1000, latestBlock);
+    const ethFee = gasPrice * gasUsed;
+    const usdtFee = ethFee * ethUsdRate;
+
+    console.log({
+      message: 'calculateFee',
+      details: { usdtFee, ethFee, ethUsdRate, hash: transaction.hash }
+    });
+
+    return usdtFee.toFixed(2);
   }
 }

@@ -18,7 +18,7 @@ export class PriceService {
     return PriceService.singleton;
   }
 
-  async getEthUsdConversionRate(transactionTimestamp: string): Promise<number> {
+  async getEthUsdRate(transactionTimestamp: string): Promise<number> {
     try {
       const transactionDate = new Date(parseInt(transactionTimestamp) * 1000);
       const startTime = new Date(transactionDate.getFullYear(), transactionDate.getMonth(), transactionDate.getDate()).getTime();
@@ -26,11 +26,21 @@ export class PriceService {
 
       const response = await this.client.get(`https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1d&startTime=${startTime}&endTime=${endTime}&limit=1`);
 
-      const ethUsdClosingPrice = parseFloat(response.data[0][4]);
+      const ethUsdRate = parseFloat(response.data[0][4]);
 
-      return ethUsdClosingPrice;
+      console.log({
+        message: 'getEthUsdRate',
+        details: { ethUsdRate, transactionTimestamp }
+      });
+
+      return ethUsdRate;
     } catch (error: any) {
-      throw 'ERROR_GET_PRICE';
+      console.error({
+        message: 'getEthUsdRateError',
+        details: { transactionTimestamp },
+        error,
+      });
+      throw 'ETH_PRICE_ERROR';
     }
   }
 }
