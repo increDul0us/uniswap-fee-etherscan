@@ -48,7 +48,7 @@ export class RecordService {
     const latestBlockNumber = await this.extractorService.fetchLatestBlockNumber();
     const startBlock = latestSavedBlockNumber ?? latestBlockNumber - 10 ;
 
-    const transactions = await this.extractorService.fetchTxs(19545093, 19545103);
+    const transactions = await this.extractorService.fetchTxs(startBlock, latestBlockNumber);
     const transactionsWithFee = await this.mapTransactionsWithFee(transactions);
     await this.batchInsertTransactions(transactionsWithFee);
   }

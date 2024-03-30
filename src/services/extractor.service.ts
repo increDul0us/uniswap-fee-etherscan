@@ -46,9 +46,16 @@ export class ExtractorService {
     return ExtractorService.singleton;
   }
 
+  handleFailedResponse(response: any) {
+    if (!response.message.startsWith('OK')) {
+      throw response.data.message;
+    }
+  }
+
   async fetchTxs(startBlock: number, endBlock: number) {
     try {
-      const res = await this.client.get<{ result: ITransaction[] }>(`?module=account&action=tokentx&address=${this.uniswapUsdcAddress}&startblock=${startBlock}&endblock=${endBlock}`);
+      const res = await this.client.get<{ message: string, result: ITransaction[] }>(`?module=account&action=tokentx&address=${this.uniswapUsdcAddress}&startblock=${startBlock}&endblock=${endBlock}`);
+      this.handleFailedResponse(res.data);
       const transactions = res.data.result?.filter(tx => tx.tokenSymbol === 'WETH'); // we do not need the 2 transactions
 
       console.log({
@@ -70,6 +77,7 @@ export class ExtractorService {
   async fetchLatestBlockNumber(): Promise<number> {
     try {
       const res = await this.client.get<{ result: string }>(`?module=proxy&action=eth_blockNumber`);
+      this.handleFailedResponse(res.data);
 
       const blockNumber = ethers.BigNumber.from(res.data.result).toNumber();
 
