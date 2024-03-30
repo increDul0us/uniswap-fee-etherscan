@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { ethers } from 'ethers';
 import { config } from '../../config/config';
+import { PriceService } from './price.service';
 
 export interface ITransaction {
   blockNumber: string,
@@ -48,7 +49,7 @@ export class ExtractorService {
 
   async fetchTxs(startBlock: number, endBlock: number) {
     try {
-      const res = await this.client.get<{ result: ITransaction[] }>(`?module=account&action=tokentx&address=${this.uniswapUsdcAddress}&page=1&offset=100&startblock=${startBlock}&endblock=${endBlock}&sort=asc`);
+      const res = await this.client.get<{ result: ITransaction[] }>(`?module=account&action=tokentx&address=${this.uniswapUsdcAddress}&startblock=${startBlock}&endblock=${endBlock}&sort=asc`);
   
       const transactions = res.data.result;
       return transactions;
@@ -66,6 +67,15 @@ export class ExtractorService {
     } catch (error: any) {
       throw 'ERROR_BLOCK_NUMBER';
     }
+  }
+
+  async calculateFee(transaction: ITransaction, ethUsdPrice?: number) {
+    const price = ethUsdPrice ?? await PriceService.getSingleton().getEthUsdConversionRate(transaction.timeStamp);
+    const gasPrice = parseFloat(transaction.gasPrice);
+    const gasUsed = parseFloat(transaction.gasUsed);
+    const ethFee = gasPrice * gasUsed;
+    const feeInUsdt = ethFee * price;
+    return feeInUsdt.toFixed(2);
   }
 
   async init() {
