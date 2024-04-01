@@ -1,10 +1,10 @@
 import { CreationAttributes } from 'sequelize';
-import { Transaction } from '../model/transaction.model';
+import { Transaction } from './model/transaction.model';
 import { ExtractorService, ISwapTransaction } from './extractor.service';
 import { PriceService } from './price.service';
 
-export class RecordService {
-  static singleton: RecordService;
+export class TransactionService {
+  static singleton: TransactionService;
 
   constructor(
     readonly extractorService: ExtractorService,
@@ -14,15 +14,15 @@ export class RecordService {
     // setInterval(() => this.poll(), everyFiveMinutes); // using setInterval to poll every 5 minutes
   }
 
-  static getSingleton(): RecordService {
-    if (!RecordService.singleton) {
-      RecordService.singleton = RecordService.createDefault();
+  static getSingleton(): TransactionService {
+    if (!TransactionService.singleton) {
+      TransactionService.singleton = TransactionService.createDefault();
     }
-    return RecordService.singleton;
+    return TransactionService.singleton;
   }
 
   static createDefault() {
-    return RecordService.create({
+    return TransactionService.create({
       extractorService: ExtractorService.getSingleton(),
       priceService: PriceService.getSingleton(),
     });
@@ -35,7 +35,7 @@ export class RecordService {
     extractorService: ExtractorService,
     priceService: PriceService,
   }) {
-    return new RecordService(
+    return new TransactionService(
       extractorService,
       priceService,
     );
@@ -46,7 +46,7 @@ export class RecordService {
     const latestBlockNumber = await this.extractorService.fetchLatestBlockNumber();
     const startBlock = latestSavedBlockNumber ?? latestBlockNumber - 10 ;
 
-    const transactions = await this.extractorService.fetchTxs(startBlock, latestBlockNumber);
+    const transactions = await this.extractorService.fetchTransferTxs(startBlock, latestBlockNumber);
     const transactionsWithFee = await this.mapTransactionsWithFee(transactions);
     await this.batchInsertTransactions(transactionsWithFee);
   }
@@ -106,7 +106,7 @@ export class RecordService {
   }
 
   async getTransactionFeeFromApi(hash: string) {
-    const internalTransactions = await this.extractorService.fetchTxByHash(hash);
+    const internalTransactions = await this.extractorService.fetchIntTxByHash(hash);
     if (!internalTransactions.length) {
       throw 'TRANSACTION_NOT_FOUND';
     }
@@ -117,8 +117,8 @@ export class RecordService {
 
     const startBlock = Number(internalTransaction.blockNumber);
     const endBlock = startBlock + 1;
-    const transferTransactions = await this.extractorService.fetchTxs(startBlock, endBlock);
+    const transferTransactions = await this.extractorService.fetchTransferTxs(startBlock, endBlock);
     const transactionsWithFee = await this.mapTransactionsWithFee(transferTransactions);
-    return transactionsWithFee.find(tx => tx.hash === hash)!.fee;
+    return transactionsWithFee.find(tx => tx.hash === hash)?.fee;
   }
 }

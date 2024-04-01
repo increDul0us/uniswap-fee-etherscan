@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import { ethers } from 'ethers';
-import { config } from '../../config/config';
+import { config } from '../config/config';
 
 export interface ISwapTransaction {
   blockNumber: string,
@@ -61,21 +61,21 @@ export class ExtractorService {
     return ExtractorService.singleton;
   }
 
-  async fetchTxByHash(hash: string) {
+  async fetchIntTxByHash(hash: string) {
     try {
       const res = await this.client.get<{ message: string, result: IInternalTransaction[] }>(`?module=account&action=txlistinternal&txhash=${hash}&apikey=${this.apiKey}`);
       if (!res.data.message.startsWith('OK')) return [];
       const transactions = res.data.result;
 
       console.log({
-        message: 'fetchTxByHash',
+        message: 'fetchIntTxByHash',
         details: { transactionLength: transactions.length, hash }
       });
 
       return transactions;
     } catch (error: any) {
       console.error({
-        message: 'fetchTxByHashError',
+        message: 'fetchIntTxByHashError',
         details: { hash },
         error,
       });
@@ -83,21 +83,21 @@ export class ExtractorService {
     }
   }
 
-  async fetchTxs(startBlock: number, endBlock: number) {
+  async fetchTransferTxs(startBlock: number, endBlock: number) {
     try {
       const res = await this.client.get<{ message: string, result: ISwapTransaction[] }>(`?module=account&action=tokentx&address=${this.uniswapUsdcAddress}&startblock=${startBlock}&endblock=${endBlock}&apikey=${this.apiKey}`);
       if (!res.data.message.startsWith('OK')) return [];
       const transactions = res.data.result?.filter(tx => tx.tokenSymbol === 'WETH'); // we do not need the 2 transactions
 
       console.log({
-        message: 'fetchTxs',
+        message: 'fetchTransferTxs',
         details: { transactionLength: transactions.length, startBlock, endBlock }
       });
 
       return transactions;
     } catch (error: any) {
       console.error({
-        message: 'fetchTxsError',
+        message: 'fetchTransferTxsError',
         details: { startBlock, endBlock },
         error,
       });
@@ -136,21 +136,6 @@ export class ExtractorService {
     console.log({
       message: 'calculateFee',
       details: { usdtFee, ethFee, ethUsdRate, hash: transaction.hash }
-    });
-
-    return usdtFee.toFixed(2);
-  }
-
-  calculateFeeIsh(transaction: IInternalTransaction, ethUsdRate: number) {
-    const gasPrice = parseFloat(ethers.utils.formatEther(transaction.gas));
-    const gasUsed = parseFloat(transaction.gasUsed);
-
-    const ethFee = gasPrice * gasUsed;
-    const usdtFee = ethFee * ethUsdRate;
-
-    console.log({
-      message: 'calculateFee',
-      details: { usdtFee, ethFee, ethUsdRate, blockNumber: transaction.blockNumber }
     });
 
     return usdtFee.toFixed(2);
