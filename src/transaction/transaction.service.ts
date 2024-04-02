@@ -2,6 +2,7 @@ import { CreationAttributes } from 'sequelize';
 import { Transaction } from './model/transaction.model';
 import { EtherscanService, BinanceService, UsdcEtherscanService } from '../modules';
 import { ISwapTransaction } from '../modules/etherscan/types';
+import sequelize from '../db';
 
 export class TransactionService {
   static singleton: TransactionService;
@@ -10,6 +11,7 @@ export class TransactionService {
     readonly etherscanService: EtherscanService,
     readonly binanceService: BinanceService,
   ) {
+    sequelize.addModels([Transaction]);
     // const everyFiveMinutes = 1000 * 60 * 1;
     // setInterval(() => this.poll(), everyFiveMinutes); // using setInterval to poll every 5 minutes
   }

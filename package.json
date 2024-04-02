@@ -7,7 +7,11 @@
     "start": "tsc && node dist/src/index.js",
     "dev": "ts-node src/index.ts",
     "build": "tsc",
-    "test": "jest"
+    "test": "jest",
+    "db:migrate": "dotenv -e .env -- sequelize db:migrate",
+    "db:migrate:undo": "dotenv -e .env -- sequelize db:migrate:undo",
+    "db:migrate:reset": "dotenv -e .env -- sequelize db:migrate:undo:all",
+    "db:migrate:create": "sequelize migration:generate --name "
   },
   "keywords": [],
   "author": "",
@@ -32,7 +36,9 @@
     "@types/node": "^20.11.30",
     "@types/sequelize": "^4.28.20",
     "@types/sinon": "^17.0.3",
+    "dotenv-cli": "^7.4.1",
     "jest": "^29.7.0",
+    "sequelize-cli": "^6.6.2",
     "sinon": "^17.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.3"
