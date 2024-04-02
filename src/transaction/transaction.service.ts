@@ -121,6 +121,10 @@ export class TransactionService {
     const endBlock = startBlock + 1;
     const transferTransactions = await this.etherscanService.fetchTransferTxs(startBlock, endBlock);
     const transactionsWithFee = await this.mapTransactionsWithFee(transferTransactions);
-    return transactionsWithFee.find(tx => tx.hash === hash)?.fee;
+    const transaction = transactionsWithFee.find(tx => tx.hash === hash);
+    if (!transaction) {
+      throw 'TRANSACTION_NOT_FOUND';
+    }
+    return transaction.fee;
   }
 }

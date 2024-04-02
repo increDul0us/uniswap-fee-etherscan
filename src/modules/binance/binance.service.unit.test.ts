@@ -33,7 +33,7 @@ describe('BinanceService', () => {
 
       try {
         await binanceService.getEthUsdRate(transactionTimestamp);
-        fail('Expected error to be thrown');
+        throw new Error('Test failed: Expected error was not thrown')
       } catch (error) {
         expect(error).toEqual('ETH_PRICE_ERROR');
       }

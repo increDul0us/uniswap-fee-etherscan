@@ -1,5 +1,4 @@
 import sinon from 'sinon';
-import assert from 'assert';
 import { EtherscanService } from './etherscan.service';
 
 describe('EtherscanService', () => {
@@ -37,7 +36,7 @@ describe('EtherscanService', () => {
       axiosStub.rejects(new Error('Request failed'));
       try {
         await etherscanService.fetchIntTxByHash(hash)
-        assert.fail('should fail')
+        throw new Error('Test failed: Expected error was not thrown')
       } catch (error) {
         expect(error).toEqual('FETCH_TX_BY_HASH_ERROR');
       }
@@ -88,7 +87,7 @@ describe('EtherscanService', () => {
       axiosStub.rejects(new Error('Request failed'));
       try {
         await etherscanService.fetchTransferTxs(startBlock, endBlock)
-        assert.fail('should fail')
+        throw new Error('Test failed: Expected error was not thrown')
       } catch (error) {
         expect(error).toEqual('FETCH_TXS_ERROR');
       }
@@ -136,7 +135,7 @@ describe('EtherscanService', () => {
       axiosStub.rejects(new Error('Request failed'));
       try {
         await etherscanService.fetchLatestBlockNumber()
-        assert.fail('should fail')
+        throw new Error('Test failed: Expected error was not thrown')
       } catch (error) {
         expect(error).toEqual('BLOCK_NUMBER_ERROR');
       }
