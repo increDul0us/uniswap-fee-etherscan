@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 
-export class PriceService {
-  static singleton: PriceService;
+export class BinanceService {
+  static singleton: BinanceService;
 
   private client: AxiosInstance;
 
@@ -11,11 +11,11 @@ export class PriceService {
     });
   }
 
-  static getSingleton(): PriceService {
-    if (!PriceService.singleton) {
-      PriceService.singleton = new PriceService();
+  static getSingleton(): BinanceService {
+    if (!BinanceService.singleton) {
+      BinanceService.singleton = new BinanceService();
     }
-    return PriceService.singleton;
+    return BinanceService.singleton;
   }
 
   async getEthUsdRate(transactionTimestamp: string): Promise<number> {

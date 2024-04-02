@@ -1,14 +1,14 @@
 import { CreationAttributes } from 'sequelize';
 import { Transaction } from './model/transaction.model';
-import { ExtractorService, ISwapTransaction } from './extractor.service';
-import { PriceService } from './price.service';
+import { EtherscanService, BinanceService, UsdcEtherscanService } from '../modules';
+import { ISwapTransaction } from '../modules/etherscan/types';
 
 export class TransactionService {
   static singleton: TransactionService;
 
   constructor(
-    readonly extractorService: ExtractorService,
-    readonly priceService: PriceService,
+    readonly etherscanService: EtherscanService,
+    readonly binanceService: BinanceService,
   ) {
     // const everyFiveMinutes = 1000 * 60 * 1;
     // setInterval(() => this.poll(), everyFiveMinutes); // using setInterval to poll every 5 minutes
@@ -23,30 +23,30 @@ export class TransactionService {
 
   static createDefault() {
     return TransactionService.create({
-      extractorService: ExtractorService.getSingleton(),
-      priceService: PriceService.getSingleton(),
+      etherscanService: UsdcEtherscanService.getSingleton(),
+      binanceService: BinanceService.getSingleton(),
     });
   }
 
   static create({
-    extractorService,
-    priceService,
+    etherscanService,
+    binanceService,
   }: {
-    extractorService: ExtractorService,
-    priceService: PriceService,
+    etherscanService: EtherscanService,
+    binanceService: BinanceService,
   }) {
     return new TransactionService(
-      extractorService,
-      priceService,
+      etherscanService,
+      binanceService,
     );
   }
   
   async poll() {
     const latestSavedBlockNumber = await this.getLatestSavedBlockNumber()
-    const latestBlockNumber = await this.extractorService.fetchLatestBlockNumber();
+    const latestBlockNumber = await this.etherscanService.fetchLatestBlockNumber();
     const startBlock = latestSavedBlockNumber ?? latestBlockNumber - 10 ;
 
-    const transactions = await this.extractorService.fetchTransferTxs(startBlock, latestBlockNumber);
+    const transactions = await this.etherscanService.fetchTransferTxs(startBlock, latestBlockNumber);
     const transactionsWithFee = await this.mapTransactionsWithFee(transactions);
     await this.batchInsertTransactions(transactionsWithFee);
   }
@@ -56,10 +56,10 @@ export class TransactionService {
 
     // we are assuming all transactions within same time frame. Hence, We do not need to keep fetching the eth-usd price for each transactions
    const timeStamp = transactions[0].timeStamp;
-   const ethUsdRate = await this.priceService.getEthUsdRate(timeStamp);
+   const ethUsdRate = await this.binanceService.getEthUsdRate(timeStamp);
 
    const transactionsWithFee = transactions.map(transaction => {
-     const fee = this.extractorService.calculateFee(transaction, ethUsdRate);
+     const fee = this.etherscanService.calculateFee(transaction, ethUsdRate);
      return { ...transaction, fee }
    });
 
@@ -106,7 +106,7 @@ export class TransactionService {
   }
 
   async getTransactionFeeFromApi(hash: string) {
-    const internalTransactions = await this.extractorService.fetchIntTxByHash(hash);
+    const internalTransactions = await this.etherscanService.fetchIntTxByHash(hash);
     if (!internalTransactions.length) {
       throw 'TRANSACTION_NOT_FOUND';
     }
@@ -117,7 +117,7 @@ export class TransactionService {
 
     const startBlock = Number(internalTransaction.blockNumber);
     const endBlock = startBlock + 1;
-    const transferTransactions = await this.extractorService.fetchTransferTxs(startBlock, endBlock);
+    const transferTransactions = await this.etherscanService.fetchTransferTxs(startBlock, endBlock);
     const transactionsWithFee = await this.mapTransactionsWithFee(transferTransactions);
     return transactionsWithFee.find(tx => tx.hash === hash)?.fee;
   }

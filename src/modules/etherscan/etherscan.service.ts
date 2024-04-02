@@ -1,69 +1,26 @@
 import axios, { AxiosInstance } from 'axios';
 import { ethers } from 'ethers';
-import { config } from '../config/config';
+import { config } from '../../../config/config';
+import { IInternalTransaction, ISwapTransaction } from './types';
 
-export interface ISwapTransaction {
-  blockNumber: string,
-  timeStamp: string,
-  hash: string,
-  nonce: string,
-  blockHash: string,
-  from: string,
-  contractAddress: string,
-  to: string,
-  value: string,
-  tokenName: string,
-  tokenSymbol: string,
-  tokenDecimal: string,
-  transactionIndex: string,
-  gas: string,
-  gasPrice: string,
-  gasUsed: string,
-  cumulativeGasUsed: string,
-  input: string,
-  confirmations: string,
-}
-
-export interface IInternalTransaction {
-  blockNumber: string
-  timeStamp: string
-  from: string
-  to: string
-  value: string
-  contractAddress: string
-  input: string
-  type: string
-  gas: string
-  gasUsed: string
-  isError: string
-  errCode: string
-}
-
-export class ExtractorService {
-  static singleton: ExtractorService;
-
+export class EtherscanService {
   private client: AxiosInstance;
   private apiKey: string;
 
-  uniswapUsdcAddress = '0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640';
+  address: string;
 
-  constructor() {
+  constructor(address: string) {
     this.client = axios.create({
       baseURL: config.etherscan.baseUrl,
     });
     this.apiKey = config.etherscan.apiKey;
-  }
-
-  static getSingleton(): ExtractorService {
-    if (!ExtractorService.singleton) {
-      ExtractorService.singleton = new ExtractorService();
-    }
-    return ExtractorService.singleton;
+    this.address = address
   }
 
   async fetchIntTxByHash(hash: string) {
     try {
       const res = await this.client.get<{ message: string, result: IInternalTransaction[] }>(`?module=account&action=txlistinternal&txhash=${hash}&apikey=${this.apiKey}`);
+      console.log(res.data)
       if (!res.data.message.startsWith('OK')) return [];
       const transactions = res.data.result;
 
@@ -85,9 +42,9 @@ export class ExtractorService {
 
   async fetchTransferTxs(startBlock: number, endBlock: number) {
     try {
-      const res = await this.client.get<{ message: string, result: ISwapTransaction[] }>(`?module=account&action=tokentx&address=${this.uniswapUsdcAddress}&startblock=${startBlock}&endblock=${endBlock}&apikey=${this.apiKey}`);
+      const res = await this.client.get<{ message: string, result: ISwapTransaction[] }>(`?module=account&action=tokentx&address=${this.address}&startblock=${startBlock}&endblock=${endBlock}&apikey=${this.apiKey}`);
       if (!res.data.message.startsWith('OK')) return [];
-      const transactions = res.data.result?.filter(tx => tx.tokenSymbol === 'WETH'); // we do not need the 2 transactions
+      const transactions = res.data.result?.filter(tx => tx.tokenSymbol !== 'WETH'); // we do not need the 2 transactions
 
       console.log({
         message: 'fetchTransferTxs',
@@ -140,4 +97,6 @@ export class ExtractorService {
 
     return usdtFee.toFixed(2);
   }
+
+  
 }

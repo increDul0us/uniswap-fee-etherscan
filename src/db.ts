@@ -1,6 +1,6 @@
 import { Sequelize } from 'sequelize-typescript';
 import { config } from '../config/config';
-import { Transaction } from './model/transaction.model';
+import { Transaction } from './transaction/model/transaction.model';
 
 const sequelize = new Sequelize({
   ...config.database,
