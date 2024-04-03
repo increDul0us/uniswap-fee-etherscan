@@ -14,13 +14,18 @@ export class EtherscanService {
       baseURL: config.etherscan.baseUrl,
     });
     this.apiKey = config.etherscan.apiKey;
-    this.address = address
+    this.address = address;
   }
 
-  async fetchIntTxByHash(hash: string) {
+  /**
+   * Fetches internal transactions by hash from the Etherscan API.
+   * @param hash The hash of the transaction.
+   * @returns An array of internal transactions.
+   * @throws If an error occurs during the fetch.
+   */
+  async fetchIntTxByHash(hash: string): Promise<IInternalTransaction[]> {
     try {
       const res = await this.client.get<{ message: string, result: IInternalTransaction[] }>(`?module=account&action=txlistinternal&txhash=${hash}&apikey=${this.apiKey}`);
-      console.log(res.data)
       if (!res.data.message.startsWith('OK')) return [];
       const transactions = res.data.result;
 
@@ -36,11 +41,19 @@ export class EtherscanService {
         details: { hash },
         error,
       });
-      throw 'FETCH_TX_BY_HASH_ERROR'
+      throw 'FETCH_TX_BY_HASH_ERROR';
     }
   }
 
-  async fetchTransferTxs(startBlock: number, endBlock: number) {
+  /**
+   * Fetches transfer transactions within a specified block range from the Etherscan API.
+   * Filters out WETH side of the transfer as we only need the side
+   * @param startBlock The start block number.
+   * @param endBlock The end block number.
+   * @returns An array of transfer transactions.
+   * @throws If an error occurs during the fetch.
+   */
+  async fetchTransferTxs(startBlock: number, endBlock: number): Promise<ISwapTransaction[]> {
     try {
       const res = await this.client.get<{ message: string, result: ISwapTransaction[] }>(`?module=account&action=tokentx&address=${this.address}&startblock=${startBlock}&endblock=${endBlock}&apikey=${this.apiKey}`);
       if (!res.data.message.startsWith('OK')) return [];
@@ -58,13 +71,18 @@ export class EtherscanService {
         details: { startBlock, endBlock },
         error,
       });
-      throw 'FETCH_TXS_ERROR'
+      throw 'FETCH_TXS_ERROR';
     }
   }
 
+  /**
+   * Fetches the latest block number from the Etherscan API.
+   * @returns The latest block number.
+   * @throws If an error occurs during the fetch.
+   */
   async fetchLatestBlockNumber(): Promise<number> {
     try {
-      const res = await this.client.get<{ result: string }>(`?module=proxy&action=eth_blockNumber`);
+      const res = await this.client.get<{ result: string }>(`?module=proxy&action=eth_blockNumber&apikey=${this.apiKey}`);
 
       const blockNumber = ethers.BigNumber.from(res.data.result).toNumber();
 
@@ -82,21 +100,4 @@ export class EtherscanService {
       throw 'BLOCK_NUMBER_ERROR';
     }
   }
-
-  calculateFee(transaction: ISwapTransaction, ethUsdRate: number) {
-    const gasPrice = parseFloat(ethers.utils.formatEther(transaction.gasPrice));
-    const gasUsed = parseFloat(transaction.gasUsed);
-
-    const ethFee = gasPrice * gasUsed;
-    const usdtFee = ethFee * ethUsdRate;
-
-    console.log({
-      message: 'calculateFee',
-      details: { usdtFee, ethFee, ethUsdRate, hash: transaction.hash }
-    });
-
-    return usdtFee.toFixed(2);
-  }
-
-  
 }

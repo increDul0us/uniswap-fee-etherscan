@@ -24,6 +24,7 @@ describe('BinanceService', () => {
       const ethUsdRate = await binanceService.getEthUsdRate(transactionTimestamp);
 
       expect(ethUsdRate).toEqual(expectedRate);
+      expect(axiosStub.calledOnceWithExactly(`https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1s&startTime=1617261600000&endTime=1617261600000&limit=1`)).toBeTruthy();
     });
 
     it('should throw an error if the API call fails', async () => {
@@ -37,6 +38,7 @@ describe('BinanceService', () => {
       } catch (error) {
         expect(error).toEqual('ETH_PRICE_ERROR');
       }
+      expect(axiosStub.calledOnceWithExactly(`https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1s&startTime=1617261600000&endTime=1617261600000&limit=1`)).toBeTruthy();
     });
   });
 });

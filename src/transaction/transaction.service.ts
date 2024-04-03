@@ -3,6 +3,7 @@ import { Transaction } from './model/transaction.model';
 import { EtherscanService, BinanceService, UsdcEtherscanService } from '../modules';
 import { ISwapTransaction } from '../modules/etherscan/types';
 import sequelize from '../db';
+import { calculateFee } from '../utils/util';
 
 export class TransactionService {
   static singleton: TransactionService;
@@ -12,8 +13,6 @@ export class TransactionService {
     readonly binanceService: BinanceService,
   ) {
     sequelize.addModels([Transaction]);
-    // const everyFiveMinutes = 1000 * 60 * 1;
-    // setInterval(() => this.poll(), everyFiveMinutes); // using setInterval to poll every 5 minutes
   }
 
   static getSingleton(): TransactionService {
@@ -43,31 +42,52 @@ export class TransactionService {
     );
   }
   
+  /**
+   * Polls for new transactions and processes them.
+   * Processes last 10 blocks for upon start
+   */
   async poll() {
-    const latestSavedBlockNumber = await this.getLatestSavedBlockNumber()
     const latestBlockNumber = await this.etherscanService.fetchLatestBlockNumber();
+    const latestSavedBlockNumber = await this.getLatestSavedBlockNumber()
     const startBlock = latestSavedBlockNumber ?? latestBlockNumber - 10 ;
 
-    const transactions = await this.etherscanService.fetchTransferTxs(startBlock, latestBlockNumber);
-    const transactionsWithFee = await this.mapTransactionsWithFee(transactions);
+    await this.processTransactions(startBlock, latestBlockNumber);
+  }
+
+  /**
+   * Processes transactions within the specified block range.
+   * Fetches all transfer transactions between the block range
+   * Batch insert the transactions to the db
+   * @param startBlock The start block number.
+   * @param endBlock The end block number.
+   */
+  async processTransactions(startBlock: number, endBlock: number) {
+    const transactions = await this.etherscanService.fetchTransferTxs(startBlock, endBlock);
+    const transactionsWithFee = await Promise.all(transactions.map(transaction => this.mapTransactionWithFee(transaction)));
     await this.batchInsertTransactions(transactionsWithFee);
   }
 
-  async mapTransactionsWithFee(transactions: ISwapTransaction[]) {
-    if(!transactions.length) return []
-
-    // we are assuming all transactions within same time frame. Hence, We do not need to keep fetching the eth-usd price for each transactions
-   const timeStamp = transactions[0].timeStamp;
-   const ethUsdRate = await this.binanceService.getEthUsdRate(timeStamp);
-
-   const transactionsWithFee = transactions.map(transaction => {
-     const fee = this.etherscanService.calculateFee(transaction, ethUsdRate);
-     return { ...transaction, fee }
-   });
-
-   return transactionsWithFee;
+  /**
+   * Maps a transaction with its fee.
+   * Calculates the eth-usdt rate from binance api at the transaction time
+   * Uses the rate to calculate the fee in USDT
+   * @param transaction The transaction to map.
+   * @returns The mapped transaction with fee.
+   */
+  async mapTransactionWithFee(transaction: ISwapTransaction) {
+    const ethUsdRate = await this.binanceService.getEthUsdRate(transaction.timeStamp);
+    const fee = calculateFee(transaction.gasPrice, transaction.gasUsed, ethUsdRate);
+    console.log({
+      message: 'calculateFee',
+      details: { fee, ethUsdRate, hash: transaction.hash }
+    });
+    return { ...transaction, fee }
   }
 
+  /**
+   * Retrieves the latest saved block number from the database.
+   * @returns The latest saved block number, or null if not found.
+   */
   async getLatestSavedBlockNumber(): Promise<number | null> {
     try {
       const latestTransaction = await Transaction.findOne({
@@ -85,6 +105,10 @@ export class TransactionService {
     }
   }
 
+  /**
+   * Inserts transactions into the database in bulk.
+   * @param transactions The transactions to insert.
+   */
   async batchInsertTransactions(transactions: CreationAttributes<Transaction>[]): Promise<void> {
     try {
       await Transaction.bulkCreate(transactions, { ignoreDuplicates: true });
@@ -97,6 +121,13 @@ export class TransactionService {
     }
   }
 
+  /**
+   * Retrieves the transaction fee by hash.
+   * Checks the db for the transaction and returns the fee
+   * Queries the api if not in our db and calculate the fee
+   * @param hash The hash of the transaction.
+   * @returns The fee of the transaction.
+   */
   async getTransactionFee(hash: string) {
     const transaction = await Transaction.findOne({
       where: { hash },
@@ -107,6 +138,14 @@ export class TransactionService {
     return this.getTransactionFeeFromApi(hash);
   }
 
+  /**
+   * Retrieves the transaction fee from the API by hash.
+   * Fetches the internal transaction from the hash
+   * Gets the block number and fetch the transfer transaction
+   * @param hash The hash of the transaction.
+   * @returns The fee of the transaction.
+   * @throws throws if transaction not found or failed.
+   */
   async getTransactionFeeFromApi(hash: string) {
     const internalTransactions = await this.etherscanService.fetchIntTxByHash(hash);
     if (!internalTransactions.length) {
@@ -120,11 +159,11 @@ export class TransactionService {
     const startBlock = Number(internalTransaction.blockNumber);
     const endBlock = startBlock + 1;
     const transferTransactions = await this.etherscanService.fetchTransferTxs(startBlock, endBlock);
-    const transactionsWithFee = await this.mapTransactionsWithFee(transferTransactions);
-    const transaction = transactionsWithFee.find(tx => tx.hash === hash);
+    const transaction = transferTransactions.find(tx => tx.hash === hash);
     if (!transaction) {
       throw 'TRANSACTION_NOT_FOUND';
     }
-    return transaction.fee;
+    const transactionWithFee = await this.mapTransactionWithFee(transaction);
+    return transactionWithFee.fee;
   }
 }

@@ -26,6 +26,7 @@ describe('EtherscanService', () => {
       axiosStub.resolves({ data: { message: 'OK', result: internalTransactions } });
   
       const transactions = await etherscanService.fetchIntTxByHash(hash);
+      expect(axiosStub.calledOnceWithExactly(`?module=account&action=txlistinternal&txhash=${hash}&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
   
       expect(transactions).toEqual(internalTransactions);
     });
@@ -40,6 +41,7 @@ describe('EtherscanService', () => {
       } catch (error) {
         expect(error).toEqual('FETCH_TX_BY_HASH_ERROR');
       }
+      expect(axiosStub.calledOnceWithExactly(`?module=account&action=txlistinternal&txhash=${hash}&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
     });
 
     it('fetchIntTxByHash handles NOTOK response', async () => {
@@ -50,6 +52,7 @@ describe('EtherscanService', () => {
       const transactions = await etherscanService.fetchIntTxByHash(hash);
   
       expect(transactions).toHaveLength(0);
+      expect(axiosStub.calledOnceWithExactly(`?module=account&action=txlistinternal&txhash=${hash}&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
     });
 
     it('fetchIntTxByHash handles empty response', async () => {
@@ -60,6 +63,7 @@ describe('EtherscanService', () => {
       const transactions = await etherscanService.fetchIntTxByHash(hash);
   
       expect(transactions).toHaveLength(0);
+      expect(axiosStub.calledOnceWithExactly(`?module=account&action=txlistinternal&txhash=${hash}&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
     });
   });
 
@@ -78,6 +82,7 @@ describe('EtherscanService', () => {
       const transactions = await etherscanService.fetchTransferTxs(startBlock, endBlock);
   
       expect(transactions).toEqual(transferTransactions);
+      expect(axiosStub.calledOnceWithExactly(`?module=account&action=tokentx&address=${etherscanService['address']}&startblock=${startBlock}&endblock=${endBlock}&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
     });
   
     it('fetchTransferTxs handles failed response', async () => {
@@ -91,6 +96,7 @@ describe('EtherscanService', () => {
       } catch (error) {
         expect(error).toEqual('FETCH_TXS_ERROR');
       }
+      expect(axiosStub.calledOnceWithExactly(`?module=account&action=tokentx&address=${etherscanService['address']}&startblock=${startBlock}&endblock=${endBlock}&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
     });
   
     it('fetchTransferTxs handles NOTOK response', async () => {
@@ -102,6 +108,7 @@ describe('EtherscanService', () => {
       const transactions = await etherscanService.fetchTransferTxs(startBlock, endBlock);
   
       expect(transactions).toHaveLength(0);
+      expect(axiosStub.calledOnceWithExactly(`?module=account&action=tokentx&address=${etherscanService['address']}&startblock=${startBlock}&endblock=${endBlock}&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
     });
   
     it('fetchTransferTxs handles empty response', async () => {
@@ -113,6 +120,7 @@ describe('EtherscanService', () => {
       const transactions = await etherscanService.fetchTransferTxs(startBlock, endBlock);
   
       expect(transactions).toHaveLength(0);
+      expect(axiosStub.calledOnceWithExactly(`?module=account&action=tokentx&address=${etherscanService['address']}&startblock=${startBlock}&endblock=${endBlock}&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
     });
   });
 
@@ -129,6 +137,7 @@ describe('EtherscanService', () => {
       const blockNumber = await etherscanService.fetchLatestBlockNumber();
   
       expect(blockNumber).toEqual(latestBlockNumber);
+      expect(axiosStub.calledOnceWithExactly(`?module=proxy&action=eth_blockNumber&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
     });
   
     it('fetchLatestBlockNumber handles failed response', async () => {
@@ -139,41 +148,7 @@ describe('EtherscanService', () => {
       } catch (error) {
         expect(error).toEqual('BLOCK_NUMBER_ERROR');
       }
-    });
-  });  
-
-  describe('calculateFee', () => {
-    const ethUsdRate = 2000;
-  
-    it('calculateFee returns the correct fee in USD', () => {
-      const transaction = {
-        blockNumber: '123',
-        timeStamp: '1234567890',
-        hash: '0x123abc',
-        nonce: '0',
-        blockHash: '0x456def',
-        from: '0xfromAddress',
-        contractAddress: '0xcontractAddress',
-        to: '0xtoAddress',
-        value: '1000000000000000',
-        tokenName: 'SampleToken',
-        tokenSymbol: 'ST',
-        tokenDecimal: '18',
-        transactionIndex: '0',
-        gas: '21000',
-        gasPrice: '50000000000',
-        gasUsed: '21000',
-        cumulativeGasUsed: '21000',
-        input: '0x',
-        confirmations: '10',
-      };
-  
-      const expectedFee = '2.10';
-  
-      const fee = etherscanService.calculateFee(transaction, ethUsdRate);
-  
-      expect(fee).toEqual(expectedFee);
+      expect(axiosStub.calledOnceWithExactly(`?module=proxy&action=eth_blockNumber&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
     });
   });
-  
 });
