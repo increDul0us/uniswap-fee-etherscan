@@ -1,4 +1,5 @@
 import { CreationAttributes } from 'sequelize';
+import { ethers } from 'ethers';
 import { Transaction } from './model/transaction.model';
 import { EtherscanService, BinanceService, UsdcEtherscanService } from '../modules';
 import { ISwapTransaction } from '../modules/etherscan/types';
@@ -50,12 +51,48 @@ export class TransactionService {
       rabbitMQService,
     );
   }
-  
+
+  async initRmqListener() {
+    await this.rabbitMQService.connect(config.rabbitMqUrl);
+    await this.rabbitMQService.createQueue(this.queueName);
+    this.rabbitMQService.channel?.consume(this.queueName, async (message)=> {
+      if (message !== null) {
+        const { startBlock, endBlock } = JSON.parse(message.content.toString());
+        try {
+          await this.processTransactions(startBlock, endBlock);
+          this.rabbitMQService.channel?.ack(message);
+        } catch (error) {
+          console.error('Error processing message:', error);
+          this.rabbitMQService.channel?.reject(message, true);
+        }
+      }
+    });
+  }
+
+  initBlockListener() {
+    const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl);
+    provider.on('block', async (blockNumber: number) => {
+      const message = { startBlock: blockNumber, endBlock: blockNumber };
+      await this.rabbitMQService.sendMessage(this.queueName, message);
+    });
+  }
+
+  async initListeners() {
+    try {
+      await this.initRmqListener();
+      await this.processFromLastSavedBlock();
+      this.initBlockListener();
+    } catch (error) {
+      console.error('Error initializing listener:', error);
+      throw error;
+    }
+  }
+
   /**
-   * Polls for new transactions and processes them.
-   * Processes last 10 blocks for upon start
-   */
-  async poll() {
+    * processes from last saved block until latest block.
+    * if none, it processes last 10 blocks.
+    */
+  async processFromLastSavedBlock() {
     const latestBlockNumber = await this.etherscanService.fetchLatestBlockNumber();
     const latestSavedBlockNumber = await this.getLatestSavedBlockNumber()
     const startBlock = latestSavedBlockNumber ?? latestBlockNumber - 10 ;
@@ -178,9 +215,8 @@ export class TransactionService {
       throw 'TRANSACTION_FAILED'
     }
 
-    const startBlock = Number(internalTransaction.blockNumber);
-    const endBlock = startBlock + 1;
-    const transferTransactions = await this.etherscanService.fetchTransferTxs(startBlock, endBlock);
+    const blockNumber = Number(internalTransaction.blockNumber);
+    const transferTransactions = await this.etherscanService.fetchTransferTxs(blockNumber, blockNumber);
     const transaction = transferTransactions.find(tx => tx.hash === hash);
     if (!transaction) {
       throw 'TRANSACTION_NOT_FOUND';
@@ -207,29 +243,6 @@ export class TransactionService {
         message: 'backfill',
         details: { batch: `${i + 1}/${numBatches}`, message }
       });
-    }
-  }
-
-  async initListener() {
-    try {
-      await this.rabbitMQService.connect(config.rabbitMqUrl);
-      await this.rabbitMQService.createQueue(this.queueName);
-  
-      this.rabbitMQService.channel?.consume(this.queueName, async (message)=> {
-        if (message !== null) {
-          const { startBlock, endBlock } = JSON.parse(message.content.toString());
-          try {
-            await this.processTransactions(startBlock, endBlock);
-            this.rabbitMQService.channel?.ack(message);
-          } catch (error) {
-            console.error('Error processing message:', error);
-            this.rabbitMQService.channel?.reject(message, true);
-          }
-        }
-      });
-    } catch (error) {
-      console.error('Error initializing listener:', error);
-      throw error;
     }
   }
 }

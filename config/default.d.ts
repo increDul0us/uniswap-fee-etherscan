@@ -13,4 +13,5 @@ export default interface IConfig {
     apiKey: string,
   }
   rabbitMqUrl: string,
+  rpcUrl: string,
 }

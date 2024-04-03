@@ -13,4 +13,5 @@ module.exports = {
     apiKey: process.env.ETHER_SCAN_API_KEY,
   },
   rabbitMqUrl: process.env.RABBIT_MQ_URL,
+  rpcUrl: process.env.RPC_URL,
 }
