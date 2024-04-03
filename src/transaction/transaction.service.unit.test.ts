@@ -1,17 +1,20 @@
+import sinon from 'sinon';
 import { TransactionService } from './transaction.service';
 import { EtherscanService, BinanceService } from '../modules';
 import { Transaction } from './model/transaction.model';
-import sinon from 'sinon';
+import { RabbitMQService } from '../rmq/rabbitmq.service';
 
 describe('TransactionService', () => {
   let etherscanServiceMock: sinon.SinonStubbedInstance<EtherscanService>;
   let binanceServiceMock: sinon.SinonStubbedInstance<BinanceService>;
+  let rmqServiceMock: sinon.SinonStubbedInstance<RabbitMQService>;
   let transactionService: TransactionService;
 
   beforeEach(() => {
     etherscanServiceMock = sinon.createStubInstance(EtherscanService);
     binanceServiceMock = sinon.createStubInstance(BinanceService);
-    transactionService = new TransactionService(etherscanServiceMock, binanceServiceMock);
+    rmqServiceMock = sinon.createStubInstance(RabbitMQService);
+    transactionService = new TransactionService(etherscanServiceMock, binanceServiceMock, rmqServiceMock);
   });
 
   afterEach(() => {

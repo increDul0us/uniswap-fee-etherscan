@@ -4,13 +4,18 @@ import { EtherscanService, BinanceService, UsdcEtherscanService } from '../modul
 import { ISwapTransaction } from '../modules/etherscan/types';
 import sequelize from '../db';
 import { calculateFee } from '../utils/util';
+import { RabbitMQService } from '../rmq/rabbitmq.service';
+import { config } from '../../config/config';
 
 export class TransactionService {
   static singleton: TransactionService;
 
+  queueName = 'transaction_queue';
+
   constructor(
     readonly etherscanService: EtherscanService,
     readonly binanceService: BinanceService,
+    readonly rabbitMQService: RabbitMQService,
   ) {
     sequelize.addModels([Transaction]);
   }
@@ -26,19 +31,23 @@ export class TransactionService {
     return TransactionService.create({
       etherscanService: UsdcEtherscanService.getSingleton(),
       binanceService: BinanceService.getSingleton(),
+      rabbitMQService: RabbitMQService.getSingleton(),
     });
   }
 
   static create({
     etherscanService,
     binanceService,
+    rabbitMQService,
   }: {
     etherscanService: EtherscanService,
     binanceService: BinanceService,
+    rabbitMQService: RabbitMQService,
   }) {
     return new TransactionService(
       etherscanService,
       binanceService,
+      rabbitMQService,
     );
   }
   
@@ -62,9 +71,22 @@ export class TransactionService {
    * @param endBlock The end block number.
    */
   async processTransactions(startBlock: number, endBlock: number) {
-    const transactions = await this.etherscanService.fetchTransferTxs(startBlock, endBlock);
-    const transactionsWithFee = await Promise.all(transactions.map(transaction => this.mapTransactionWithFee(transaction)));
-    await this.batchInsertTransactions(transactionsWithFee);
+    console.log({
+      message: 'processTransactions',
+      details: { startBlock, endBlock }
+    });
+    try {
+      const transactions = await this.etherscanService.fetchTransferTxs(startBlock, endBlock);
+      const transactionsWithFee = await Promise.all(transactions.map(transaction => this.mapTransactionWithFee(transaction)));
+      await this.batchInsertTransactions(transactionsWithFee);
+    } catch (error: any) {
+      console.error({
+        message: 'processTransactionsError',
+        details: { startBlock, endBlock },
+        error,
+      });
+      throw error;
+    }
   }
 
   /**
@@ -165,5 +187,49 @@ export class TransactionService {
     }
     const transactionWithFee = await this.mapTransactionWithFee(transaction);
     return transactionWithFee.fee;
+  }
+
+  async backfill(startTime: string, endTime: string) {
+    const startBlock = await this.etherscanService.getBlockNumberFromTimestamp(startTime);
+    const endBlock = await this.etherscanService.getBlockNumberFromTimestamp(endTime);
+
+    const batchSize = 10000;
+    
+    const numBatches = Math.ceil((endBlock - startBlock) / batchSize);
+
+    for (let i = 0; i < numBatches; i++) {
+      const batchStart = startBlock + i * batchSize;
+      const batchEnd = Math.min(startBlock + (i + 1) * batchSize - 1, endBlock);
+      
+      const message = { startBlock: batchStart, endBlock: batchEnd };
+      await this.rabbitMQService.sendMessage(this.queueName, message);
+      console.log({
+        message: 'backfill',
+        details: { batch: `${i + 1}/${numBatches}`, message }
+      });
+    }
+  }
+
+  async initListener() {
+    try {
+      await this.rabbitMQService.connect(config.rabbitMqUrl);
+      await this.rabbitMQService.createQueue(this.queueName);
+  
+      this.rabbitMQService.channel?.consume(this.queueName, async (message)=> {
+        if (message !== null) {
+          const { startBlock, endBlock } = JSON.parse(message.content.toString());
+          try {
+            await this.processTransactions(startBlock, endBlock);
+            this.rabbitMQService.channel?.ack(message);
+          } catch (error) {
+            console.error('Error processing message:', error);
+            this.rabbitMQService.channel?.reject(message, true);
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error initializing listener:', error);
+      throw error;
+    }
   }
 }

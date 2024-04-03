@@ -151,4 +151,34 @@ describe('EtherscanService', () => {
       expect(axiosStub.calledOnceWithExactly(`?module=proxy&action=eth_blockNumber&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
     });
   });
+
+  describe('getBlockNumberFromTimestamp', () => {
+    afterEach(() => {
+      axiosStub.resetHistory();
+    });
+  
+    it('getBlockNumberFromTimestamp returns the latest block number', async () => {
+      const latestBlockNumber = 10000;
+      const timestamp = '1617261600000';
+  
+      axiosStub.resolves({ data: { result: latestBlockNumber.toString() } });
+  
+      const blockNumber = await etherscanService.getBlockNumberFromTimestamp(timestamp);
+  
+      expect(blockNumber).toEqual(latestBlockNumber);
+      expect(axiosStub.calledOnceWithExactly(`?module=block&action=getblocknobytime&timestamp=${timestamp}&closest=before&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
+    });
+  
+    it('getBlockNumberFromTimestamp handles failed response', async () => {
+      const timestamp = '1617261600000';
+      axiosStub.rejects(new Error('Request failed'));
+      try {
+        await etherscanService.getBlockNumberFromTimestamp(timestamp)
+        throw new Error('Test failed: Expected error was not thrown')
+      } catch (error) {
+        expect(error).toEqual('BLOCK_NUMBER_FROM_TIMESTAMP_ERROR');
+      }
+      expect(axiosStub.calledOnceWithExactly(`?module=block&action=getblocknobytime&timestamp=${timestamp}&closest=before&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
+    });
+  });
 });

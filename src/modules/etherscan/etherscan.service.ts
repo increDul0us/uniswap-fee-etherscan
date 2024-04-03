@@ -100,4 +100,26 @@ export class EtherscanService {
       throw 'BLOCK_NUMBER_ERROR';
     }
   }
+
+  async getBlockNumberFromTimestamp(timestamp: string): Promise<number> {
+    try {
+      const res = await this.client.get<{ result: string }>(`?module=block&action=getblocknobytime&timestamp=${timestamp}&closest=before&apikey=${this.apiKey}`);
+  
+      const blockNumber = ethers.BigNumber.from(res.data.result).toNumber();
+  
+      console.log({
+        message: 'getBlockNumberFromTimestamp',
+        details: { blockNumber, timestamp }
+      });
+  
+      return blockNumber;
+    } catch (error: any) {
+      console.error({
+        message: 'getBlockNumberFromTimestampError',
+        details: { timestamp },
+        error,
+      });
+      throw 'BLOCK_NUMBER_FROM_TIMESTAMP_ERROR';
+    }
+  }
 }
