@@ -21,3 +21,9 @@ services:
       POSTGRES_DB: uniswap
     ports:
       - "5432:5432"
+      
+  rabbitmq:
+      image: rabbitmq:3.8
+      ports:
+        - "5672:5672"
+        - "15672:15672"
