@@ -43,7 +43,7 @@ export class EtherscanService {
 
   /**
    * Fetches transfer transactions within a specified block range from the Etherscan API.
-   * Filters out WETH side of the transfer as we only need the side
+   * Filters unique transfer as we only need the side of the swap
    * @param startBlock The start block number.
    * @param endBlock The end block number.
    * @returns An array of transfer transactions.
@@ -51,16 +51,19 @@ export class EtherscanService {
    */
   async fetchTransferTxs(startBlock: number, endBlock: number): Promise<ISwapTransaction[]> {
     try {
-      const res = await this.client.get<{ message: string, result: ISwapTransaction[] }>(`?module=account&action=tokentx&address=${this.address}&startblock=${startBlock}&endblock=${endBlock}&apikey=${this.apiKey}`);
+      const res = await this.client.get<{ message: string, result: ISwapTransaction[] }>(`?module=account&action=tokentx&address=${this.address}&startblock=${startBlock}&endblock=${endBlock}&apikey=${this.apiKey}&sort=asc`);
       if (!res.data.message.startsWith('OK')) return [];
-      const transactions = res.data.result?.filter(tx => tx.tokenSymbol !== 'WETH'); // we do not need the 2 transactions
+
+      const transactions = res.data.result;
+      const uniqueTransactionsMap = new Map(transactions.map(transaction => [transaction.hash, transaction]));
+      const uniqueTransactions = Array.from(uniqueTransactionsMap.values());
 
       console.log({
         message: 'fetchTransferTxs',
-        details: { transactionLength: transactions.length, startBlock, endBlock }
+        details: { transactionLength: uniqueTransactions.length, startBlock, endBlock }
       });
 
-      return transactions;
+      return uniqueTransactions;
     } catch (error: any) {
       throw ErrorHandler.handleCustomError('FETCH_TXS_ERROR', error, { startBlock, endBlock });
     }

@@ -1,0 +1,54 @@
+openapi: 3.0.0
+info:
+  title: Uniswap Transaction API
+  description: API for managing Uniswap transactions
+  version: 1.0.0
+paths:
+  /transaction/backfill:
+    get:
+      summary: Initiate backfill process
+      description: Initiates the backfill process to fetch historical transaction data.
+      parameters:
+        - in: query
+          name: startTime
+          required: true
+          schema:
+            type: integer
+          description: Start time in seconds
+          example: 1648876800
+        - in: query
+          name: endTime
+          required: true
+          schema:
+            type: integer
+          description: End time in seconds
+          example: 1648963200
+      responses:
+        '200':
+          description: Backfill process initiated successfully
+          content:
+            application/json:
+              example:
+                status: success
+                data: "Backfill process initiated successfully"
+  /transaction/{hash}/fee:
+    get:
+      summary: Get transaction fee
+      description: Retrieves the fee in USDT for the specified transaction hash.
+      parameters:
+        - in: path
+          name: hash
+          required: true
+          schema:
+            type: string
+          description: Transaction hash
+          example: "0x1c8202b1622cffd8d8bc4dd39b9c6c512d79aebd74acde8443540573675024fd"
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              example:
+                status: success
+                data:
+                  fee: "24.49"

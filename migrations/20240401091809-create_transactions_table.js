@@ -23,38 +23,6 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: false
       },
-      from: {
-        type: Sequelize.STRING,
-        allowNull: false
-      },
-      contractAddress: {
-        type: Sequelize.STRING,
-        allowNull: false
-      },
-      to: {
-        type: Sequelize.STRING,
-        allowNull: false
-      },
-      value: {
-        type: Sequelize.STRING,
-        allowNull: false
-      },
-      tokenName: {
-        type: Sequelize.STRING,
-        allowNull: false
-      },
-      tokenSymbol: {
-        type: Sequelize.STRING,
-        allowNull: false
-      },
-      tokenDecimal: {
-        type: Sequelize.STRING,
-        allowNull: false
-      },
-      transactionIndex: {
-        type: Sequelize.STRING,
-        allowNull: false
-      },
       gas: {
         type: Sequelize.STRING,
         allowNull: false
@@ -68,14 +36,6 @@ module.exports = {
         allowNull: false
       },
       cumulativeGasUsed: {
-        type: Sequelize.STRING,
-        allowNull: false
-      },
-      input: {
-        type: Sequelize.STRING,
-        allowNull: false
-      },
-      confirmations: {
         type: Sequelize.STRING,
         allowNull: false
       },

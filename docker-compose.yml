@@ -11,7 +11,10 @@ services:
     ports:
       - "8001:8001"
     depends_on:
-      - postgres-db
+      rabbitmq:
+        condition: service_healthy
+      postgres-db:
+        condition: service_healthy
 
   postgres-db:
     image: postgres:13
@@ -21,9 +24,19 @@ services:
       POSTGRES_DB: uniswap
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-d", "uniswap"]
+      interval: 10s
+      retries: 5
+      timeout: 5s
       
   rabbitmq:
       image: rabbitmq:3.8
       ports:
         - "5672:5672"
         - "15672:15672"
+      healthcheck:
+        test: ["CMD", "rabbitmqctl", "status"]
+        interval: 10s
+        retries: 5
+        timeout: 5s

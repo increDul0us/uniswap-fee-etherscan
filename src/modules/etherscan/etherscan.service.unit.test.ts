@@ -75,14 +75,14 @@ describe('EtherscanService', () => {
     it('fetchTransferTxs returns transfer transactions for a given block range', async () => {
       const startBlock = 1000;
       const endBlock = 2000;
-      const transferTransactions = [{tokenSymbol: 'USDC'}, {tokenSymbol: 'USDC'}];
+      const transferTransactions = [{hash:1, tokenSymbol: 'USDC'}, {hash:2, tokenSymbol: 'USDC'}];
   
       axiosStub.resolves({ data: { message: 'OK', result: transferTransactions } });
   
       const transactions = await etherscanService.fetchTransferTxs(startBlock, endBlock);
   
       expect(transactions).toEqual(transferTransactions);
-      expect(axiosStub.calledOnceWithExactly(`?module=account&action=tokentx&address=${etherscanService['address']}&startblock=${startBlock}&endblock=${endBlock}&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
+      expect(axiosStub.calledOnceWithExactly(`?module=account&action=tokentx&address=${etherscanService['address']}&startblock=${startBlock}&endblock=${endBlock}&apikey=${etherscanService['apiKey']}&sort=asc`)).toBeTruthy();
     });
   
     it('fetchTransferTxs handles failed response', async () => {
@@ -96,7 +96,7 @@ describe('EtherscanService', () => {
       } catch (error: any) {
         expect(error.message).toBe('FETCH_TXS_ERROR');
       }
-      expect(axiosStub.calledOnceWithExactly(`?module=account&action=tokentx&address=${etherscanService['address']}&startblock=${startBlock}&endblock=${endBlock}&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
+      expect(axiosStub.calledOnceWithExactly(`?module=account&action=tokentx&address=${etherscanService['address']}&startblock=${startBlock}&endblock=${endBlock}&apikey=${etherscanService['apiKey']}&sort=asc`)).toBeTruthy();
     });
   
     it('fetchTransferTxs handles NOTOK response', async () => {
@@ -108,7 +108,7 @@ describe('EtherscanService', () => {
       const transactions = await etherscanService.fetchTransferTxs(startBlock, endBlock);
   
       expect(transactions).toHaveLength(0);
-      expect(axiosStub.calledOnceWithExactly(`?module=account&action=tokentx&address=${etherscanService['address']}&startblock=${startBlock}&endblock=${endBlock}&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
+      expect(axiosStub.calledOnceWithExactly(`?module=account&action=tokentx&address=${etherscanService['address']}&startblock=${startBlock}&endblock=${endBlock}&apikey=${etherscanService['apiKey']}&sort=asc`)).toBeTruthy();
     });
   
     it('fetchTransferTxs handles empty response', async () => {
@@ -120,7 +120,7 @@ describe('EtherscanService', () => {
       const transactions = await etherscanService.fetchTransferTxs(startBlock, endBlock);
   
       expect(transactions).toHaveLength(0);
-      expect(axiosStub.calledOnceWithExactly(`?module=account&action=tokentx&address=${etherscanService['address']}&startblock=${startBlock}&endblock=${endBlock}&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
+      expect(axiosStub.calledOnceWithExactly(`?module=account&action=tokentx&address=${etherscanService['address']}&startblock=${startBlock}&endblock=${endBlock}&apikey=${etherscanService['apiKey']}&sort=asc`)).toBeTruthy();
     });
   });
 

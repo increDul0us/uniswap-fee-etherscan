@@ -19,7 +19,7 @@ export async function backfill(req: Request, res: Response, next: NextFunction) 
 
   try {
     await transactionService.backfill(startTime as any, endTime as any);
-    res.json({ status: 'success', data: null });
+    res.json({ status: 'success', data: 'Backfill process initiated successfully' });
   } catch (error) {
     next(error);
   }

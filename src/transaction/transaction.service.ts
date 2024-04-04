@@ -56,7 +56,7 @@ export class TransactionService {
     try {
       await this.initRmqListener();
 
-      setInterval(()=> this.processFromLastSavedBlock(), 1000 * 12); // polls every 12 seconds
+      setInterval(()=> this.processFromLastSavedBlock(), 1000 * 12); // cron that polls every 12 seconds
 
     } catch (error) {
       console.error('Error initializing listener:', error);
@@ -247,6 +247,15 @@ export class TransactionService {
     return transaction.fee;
   }
 
+  /**
+   * Initiates the backfill process to fetch historical transaction data
+   * between the specified start and end time.
+   * Uses rmq to queue the request and processes it in the background
+   * Processes in batch of 2000 blocks
+   * @param startTime - The start time in Unix timestamp format.
+   * @param endTime - The end time in Unix timestamp format.
+   * @throws Throws an error if there is an issue with backfilling.
+   */
   async backfill(startTime: string, endTime: string) {
     try {
       const startBlock = await this.etherscanService.getBlockNumberFromTimestamp(startTime);

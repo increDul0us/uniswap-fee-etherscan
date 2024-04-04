@@ -24,30 +24,6 @@ export class Transaction extends Model<InferAttributes<Transaction>, InferCreati
   blockHash!: string;
 
   @Column(DataType.STRING)
-  from!: string;
-
-  @Column(DataType.STRING)
-  contractAddress!: string;
-
-  @Column(DataType.STRING)
-  to!: string;
-
-  @Column(DataType.STRING)
-  value!: string;
-
-  @Column(DataType.STRING)
-  tokenName!: string;
-
-  @Column(DataType.STRING)
-  tokenSymbol!: string;
-
-  @Column(DataType.STRING)
-  tokenDecimal!: string;
-
-  @Column(DataType.STRING)
-  transactionIndex!: string;
-
-  @Column(DataType.STRING)
   gas!: string;
 
   @Column(DataType.STRING)
@@ -58,12 +34,6 @@ export class Transaction extends Model<InferAttributes<Transaction>, InferCreati
 
   @Column(DataType.STRING)
   cumulativeGasUsed!: string;
-
-  @Column(DataType.STRING)
-  input!: string;
-
-  @Column(DataType.STRING)
-  confirmations!: string;
 
   @Column(DataType.STRING)
   fee!: string;
