@@ -38,8 +38,8 @@ describe('EtherscanService', () => {
       try {
         await etherscanService.fetchIntTxByHash(hash)
         throw new Error('Test failed: Expected error was not thrown')
-      } catch (error) {
-        expect(error).toEqual('FETCH_TX_BY_HASH_ERROR');
+      } catch (error: any) {
+        expect(error.message).toBe('FETCH_TX_BY_HASH_ERROR');
       }
       expect(axiosStub.calledOnceWithExactly(`?module=account&action=txlistinternal&txhash=${hash}&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
     });
@@ -93,8 +93,8 @@ describe('EtherscanService', () => {
       try {
         await etherscanService.fetchTransferTxs(startBlock, endBlock)
         throw new Error('Test failed: Expected error was not thrown')
-      } catch (error) {
-        expect(error).toEqual('FETCH_TXS_ERROR');
+      } catch (error: any) {
+        expect(error.message).toBe('FETCH_TXS_ERROR');
       }
       expect(axiosStub.calledOnceWithExactly(`?module=account&action=tokentx&address=${etherscanService['address']}&startblock=${startBlock}&endblock=${endBlock}&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
     });
@@ -145,8 +145,8 @@ describe('EtherscanService', () => {
       try {
         await etherscanService.fetchLatestBlockNumber()
         throw new Error('Test failed: Expected error was not thrown')
-      } catch (error) {
-        expect(error).toEqual('BLOCK_NUMBER_ERROR');
+      } catch (error: any) {
+        expect(error.message).toBe('BLOCK_NUMBER_ERROR');
       }
       expect(axiosStub.calledOnceWithExactly(`?module=proxy&action=eth_blockNumber&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
     });
@@ -161,7 +161,7 @@ describe('EtherscanService', () => {
       const latestBlockNumber = 10000;
       const timestamp = '1617261600000';
   
-      axiosStub.resolves({ data: { result: latestBlockNumber.toString() } });
+      axiosStub.resolves({ data: { result: latestBlockNumber.toString(), message: 'OK' } });
   
       const blockNumber = await etherscanService.getBlockNumberFromTimestamp(timestamp);
   
@@ -175,8 +175,8 @@ describe('EtherscanService', () => {
       try {
         await etherscanService.getBlockNumberFromTimestamp(timestamp)
         throw new Error('Test failed: Expected error was not thrown')
-      } catch (error) {
-        expect(error).toEqual('BLOCK_NUMBER_FROM_TIMESTAMP_ERROR');
+      } catch (error: any) {
+        expect(error.message).toBe('BLOCK_NUMBER_FROM_TIMESTAMP_ERROR');
       }
       expect(axiosStub.calledOnceWithExactly(`?module=block&action=getblocknobytime&timestamp=${timestamp}&closest=before&apikey=${etherscanService['apiKey']}`)).toBeTruthy();
     });

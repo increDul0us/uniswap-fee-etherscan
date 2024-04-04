@@ -2,6 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 import { ethers } from 'ethers';
 import { config } from '../../../config/config';
 import { IInternalTransaction, ISwapTransaction } from './types';
+import { ErrorHandler } from '../../utils/error.handler';
 
 export class EtherscanService {
   private client: AxiosInstance;
@@ -36,12 +37,7 @@ export class EtherscanService {
 
       return transactions;
     } catch (error: any) {
-      console.error({
-        message: 'fetchIntTxByHashError',
-        details: { hash },
-        error,
-      });
-      throw 'FETCH_TX_BY_HASH_ERROR';
+      throw ErrorHandler.handleCustomError('FETCH_TX_BY_HASH_ERROR', error, { hash });
     }
   }
 
@@ -66,12 +62,7 @@ export class EtherscanService {
 
       return transactions;
     } catch (error: any) {
-      console.error({
-        message: 'fetchTransferTxsError',
-        details: { startBlock, endBlock },
-        error,
-      });
-      throw 'FETCH_TXS_ERROR';
+      throw ErrorHandler.handleCustomError('FETCH_TXS_ERROR', error, { startBlock, endBlock });
     }
   }
 
@@ -93,17 +84,16 @@ export class EtherscanService {
 
       return blockNumber;
     } catch (error: any) {
-      console.error({
-        message: 'fetchLatestBlockNumberError',
-        error,
-      });
-      throw 'BLOCK_NUMBER_ERROR';
+      throw ErrorHandler.handleCustomError('BLOCK_NUMBER_ERROR', error);
     }
   }
 
   async getBlockNumberFromTimestamp(timestamp: string): Promise<number> {
     try {
-      const res = await this.client.get<{ result: string }>(`?module=block&action=getblocknobytime&timestamp=${timestamp}&closest=before&apikey=${this.apiKey}`);
+      const res = await this.client.get<{ message: string, result: string }>(`?module=block&action=getblocknobytime&timestamp=${timestamp}&closest=before&apikey=${this.apiKey}`);
+      if (!res.data.message.startsWith('OK')) {
+        throw ErrorHandler.handleCustomError(res.data.result, res.data, { timestamp }, 400);
+      }
   
       const blockNumber = ethers.BigNumber.from(res.data.result).toNumber();
   
@@ -114,12 +104,7 @@ export class EtherscanService {
   
       return blockNumber;
     } catch (error: any) {
-      console.error({
-        message: 'getBlockNumberFromTimestampError',
-        details: { timestamp },
-        error,
-      });
-      throw 'BLOCK_NUMBER_FROM_TIMESTAMP_ERROR';
+      throw ErrorHandler.handleCustomError('BLOCK_NUMBER_FROM_TIMESTAMP_ERROR', error, { timestamp });
     }
   }
 }

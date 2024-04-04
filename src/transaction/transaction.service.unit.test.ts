@@ -57,11 +57,11 @@ describe('TransactionService', () => {
   });
 
   describe('getTransactionFeeFromApi', () => {
-    let mapTransactionWithFeeStub: sinon.SinonStub;
+    let mapTransactionsWithFeeStub: sinon.SinonStub;
   
     const hash = '0x123abc';
     beforeEach(() => {
-      mapTransactionWithFeeStub = sinon.stub(transactionService, 'mapTransactionWithFee');
+      mapTransactionsWithFeeStub = sinon.stub(transactionService, 'mapTransactionsWithFee');
     });
   
     afterEach(() => {
@@ -70,15 +70,15 @@ describe('TransactionService', () => {
   
     it('should return transaction fee if found in API response', async () => {
       const internalTransactions = [{ isError: '0', blockNumber: '100' }];
-      const transferTransaction = { hash, fee: '10' };
+      const transferTransactions = [{ hash, fee: '10' }];
   
       etherscanServiceMock.fetchIntTxByHash.resolves(internalTransactions as any);
-      etherscanServiceMock.fetchTransferTxs.resolves([transferTransaction] as any);
-      mapTransactionWithFeeStub.resolves(transferTransaction as any);
+      etherscanServiceMock.fetchTransferTxs.resolves(transferTransactions as any);
+      mapTransactionsWithFeeStub.resolves(transferTransactions as any);
   
       const result = await transactionService.getTransactionFeeFromApi(hash);
   
-      expect(mapTransactionWithFeeStub.calledOnceWithExactly(transferTransaction)).toBeTruthy();
+      expect(mapTransactionsWithFeeStub.calledOnceWithExactly(transferTransactions)).toBeTruthy();
       expect(result).toBe('10');
     });
   
@@ -89,8 +89,8 @@ describe('TransactionService', () => {
       try {
         await transactionService.getTransactionFeeFromApi(hash);
         throw new Error('Test failed: Expected error was not thrown');
-      } catch (error) {
-        expect(error).toBe('TRANSACTION_NOT_FOUND');
+      } catch (error: any) {
+        expect(error.message).toBe('TRANSACTION_NOT_FOUND');
       }
     });
   
@@ -102,25 +102,25 @@ describe('TransactionService', () => {
       try {
         await transactionService.getTransactionFeeFromApi(hash);
         throw new Error('Test failed: Expected error was not thrown');
-      } catch (error) {
-        expect(error).toBe('TRANSACTION_FAILED');
+      } catch (error: any) {
+        expect(error.message).toBe('TRANSACTION_WAS_FAILED');
       }
     });
   
     it('should throw error if transaction fee not found in transfer transactions', async () => {
       const hash = '0x123abc';
       const internalTransactions = [{ hash, isError: '0', blockNumber: '100' }];
-      const transferTransaction = { hash: 'otherHash', fee: '10' };
+      const transferTransactions = [{ hash: 'otherHash', fee: '10' }];
   
       etherscanServiceMock.fetchIntTxByHash.resolves(internalTransactions as any);
-      etherscanServiceMock.fetchTransferTxs.resolves([transferTransaction] as any);
-      mapTransactionWithFeeStub.resolves(transferTransaction as any);
+      etherscanServiceMock.fetchTransferTxs.resolves(transferTransactions as any);
+      mapTransactionsWithFeeStub.resolves(transferTransactions as any);
 
       try {
         await transactionService.getTransactionFeeFromApi(hash);
         throw new Error('Test failed: Expected error was not thrown');
-      } catch (error) {
-        expect(error).toBe('TRANSACTION_NOT_FOUND');
+      } catch (error: any) {
+        expect(error.message).toBe('TRANSACTION_NOT_FOUND');
       }
     });
   });

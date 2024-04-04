@@ -1,4 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
+import { RateT } from './types';
+import { ErrorHandler } from '../../utils/error.handler';
 
 export class BinanceService {
   static singleton: BinanceService;
@@ -19,32 +21,36 @@ export class BinanceService {
   }
 
   /**
-   * Retrieves the ETH/USDT exchange rate at a specific timestamp from the Binance API.
-   * @param transactionTimestamp The timestamp of the transaction.
-   * @returns The ETH/USDT exchange rate.
+   * Retrieves the ETH/USDT exchange rates for a specific time range.
+   * @param startTime The start timestamp.
+   * @param endTime The end timestamp.
+   * @returns The ETH/USDT exchange rates and timestamp.
    * @throws If an error occurs during the fetch.
    */
-  async getEthUsdRate(transactionTimestamp: string): Promise<number> {
+  async getEthUsdRates(startTime: string, endTime: string): Promise<RateT[]> {
     try {
-      const timestamp = parseInt(transactionTimestamp) * 1000;
+      const interval = 60 * 1000; // 1 minute interval
+      const startTimestamp = (parseInt(startTime) * 1000) - interval;
+      const endTimestamp = (parseInt(endTime) * 1000) + interval;
 
-      const response = await this.client.get(`https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1s&startTime=${timestamp}&endTime=${timestamp}&limit=1`);
+      const response = await this.client.get(`/v3/klines?symbol=ETHUSDT&interval=1m&startTime=${startTimestamp}&endTime=${endTimestamp}&limit=1000`);
 
-      const ethUsdRate = parseFloat(response.data[0][4]);
+      const ethUsdRates = response.data.map((entry: any) => {
+        return {
+          timestamp: parseInt(entry[0]),
+          ethUsdRate: parseFloat(entry[4]),
+        };
+      });
 
       console.log({
-        message: 'getEthUsdRate',
-        details: { ethUsdRate, transactionTimestamp, data: response.headers }
+        message: 'getEthUsdRates',
+        details: { ethUsdRateLength: ethUsdRates.length, startTimestamp, endTimestamp }
       });
 
-      return ethUsdRate;
+      return ethUsdRates;
     } catch (error: any) {
-      console.error({
-        message: 'getEthUsdRateError',
-        details: { transactionTimestamp },
-        error,
-      });
-      throw 'ETH_PRICE_ERROR';
+      throw ErrorHandler.handleCustomError('ETH_PRICE_ERROR', error, { startTime, endTime });
     }
   }
+
 }

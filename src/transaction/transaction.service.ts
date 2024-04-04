@@ -1,5 +1,4 @@
 import { CreationAttributes } from 'sequelize';
-import { ethers } from 'ethers';
 import { Transaction } from './model/transaction.model';
 import { EtherscanService, BinanceService, UsdcEtherscanService } from '../modules';
 import { ISwapTransaction } from '../modules/etherscan/types';
@@ -7,6 +6,7 @@ import sequelize from '../db';
 import { calculateFee } from '../utils/util';
 import { RabbitMQService } from '../rmq/rabbitmq.service';
 import { config } from '../../config/config';
+import { ErrorHandler } from '../utils/error.handler';
 
 export class TransactionService {
   static singleton: TransactionService;
@@ -52,52 +52,57 @@ export class TransactionService {
     );
   }
 
-  async initRmqListener() {
-    await this.rabbitMQService.connect(config.rabbitMqUrl);
-    await this.rabbitMQService.createQueue(this.queueName);
-    this.rabbitMQService.channel?.consume(this.queueName, async (message)=> {
-      if (message !== null) {
-        const { startBlock, endBlock } = JSON.parse(message.content.toString());
-        try {
-          await this.processTransactions(startBlock, endBlock);
-          this.rabbitMQService.channel?.ack(message);
-        } catch (error) {
-          console.error('Error processing message:', error);
-          this.rabbitMQService.channel?.reject(message, true);
-        }
-      }
-    });
-  }
-
-  initBlockListener() {
-    const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl);
-    provider.on('block', async (blockNumber: number) => {
-      const message = { startBlock: blockNumber, endBlock: blockNumber };
-      await this.rabbitMQService.sendMessage(this.queueName, message);
-    });
-  }
-
-  async initListeners() {
+  async init() {
     try {
       await this.initRmqListener();
-      await this.processFromLastSavedBlock();
-      this.initBlockListener();
+
+      setInterval(()=> this.processFromLastSavedBlock(), 1000 * 12); // polls every 12 seconds
+
     } catch (error) {
       console.error('Error initializing listener:', error);
       throw error;
     }
   }
 
+  async initRmqListener() {
+    await this.rabbitMQService.connect(config.rabbitMqUrl);
+    await this.rabbitMQService.createQueue(this.queueName);
+    await this.rabbitMQService.channel?.prefetch(1);
+
+    const rmqConsumers = 5;
+    for (let i = 0; i < rmqConsumers; i++) {
+      this.rabbitMQService.channel?.consume(this.queueName, async (message)=> {
+        if (message !== null) {
+          const { startBlock, endBlock } = JSON.parse(message.content.toString());
+          try {
+            await this.processTransactions(startBlock, endBlock);
+            this.rabbitMQService.channel?.ack(message);
+          } catch (error) {
+            console.error('Error processing message:', error);
+            this.rabbitMQService.channel?.reject(message, true);
+          }
+        }
+      });
+    }
+  }
+
   /**
-    * processes from last saved block until latest block.
+    * processes from last saved block until latest block on chain.
     * if none, it processes last 10 blocks.
     */
   async processFromLastSavedBlock() {
-    const latestBlockNumber = await this.etherscanService.fetchLatestBlockNumber();
-    const latestSavedBlockNumber = await this.getLatestSavedBlockNumber()
-    const startBlock = latestSavedBlockNumber ?? latestBlockNumber - 10 ;
-
-    await this.processTransactions(startBlock, latestBlockNumber);
+    try {
+      const latestBlockNumber = await this.etherscanService.fetchLatestBlockNumber();
+      const latestSavedBlockNumber = await this.getLatestSavedBlockNumber()
+      const startBlock = latestSavedBlockNumber ?? latestBlockNumber - 10 ;
+  
+      await this.processTransactions(startBlock, latestBlockNumber);
+    } catch (error) {
+      console.error({
+        message: 'processFromLastSavedBlockError',
+        error,
+      });
+    }
   }
 
   /**
@@ -114,7 +119,7 @@ export class TransactionService {
     });
     try {
       const transactions = await this.etherscanService.fetchTransferTxs(startBlock, endBlock);
-      const transactionsWithFee = await Promise.all(transactions.map(transaction => this.mapTransactionWithFee(transaction)));
+      const transactionsWithFee = await this.mapTransactionsWithFee(transactions);
       await this.batchInsertTransactions(transactionsWithFee);
     } catch (error: any) {
       console.error({
@@ -127,20 +132,33 @@ export class TransactionService {
   }
 
   /**
-   * Maps a transaction with its fee.
-   * Calculates the eth-usdt rate from binance api at the transaction time
+   * Maps a transactions with fee.
+   * Fetches the eth-usdt rates from binance api of the transactions time frame
    * Uses the rate to calculate the fee in USDT
-   * @param transaction The transaction to map.
-   * @returns The mapped transaction with fee.
+   * @param transaction The transactions to map.
+   * @returns The mapped transactions with fee.
    */
-  async mapTransactionWithFee(transaction: ISwapTransaction) {
-    const ethUsdRate = await this.binanceService.getEthUsdRate(transaction.timeStamp);
-    const fee = calculateFee(transaction.gasPrice, transaction.gasUsed, ethUsdRate);
-    console.log({
-      message: 'calculateFee',
-      details: { fee, ethUsdRate, hash: transaction.hash }
-    });
-    return { ...transaction, fee }
+  async mapTransactionsWithFee(transactions: ISwapTransaction[]) {
+    if (!transactions.length) return [];
+    const startTime = transactions[0].timeStamp;
+    const endTime = transactions[transactions.length - 1].timeStamp;
+    const ethUsdRates = await this.binanceService.getEthUsdRates(startTime, endTime);
+
+    const transactionsWithFee = transactions.map(transaction => {
+      const timeStamp = parseInt(transaction.timeStamp) * 1000
+      const ethUsdRate = ethUsdRates.reduce((prev, curr) => {
+        if (curr.timestamp <= timeStamp && curr.timestamp > prev.timestamp) {
+          return curr;
+        }
+        return prev;
+      }, ethUsdRates[0]);
+
+      const fee = calculateFee(transaction.gasPrice, transaction.gasUsed, ethUsdRate.ethUsdRate);
+  
+      return { ...transaction, fee }
+    })
+
+    return transactionsWithFee;
   }
 
   /**
@@ -188,13 +206,17 @@ export class TransactionService {
    * @returns The fee of the transaction.
    */
   async getTransactionFee(hash: string) {
-    const transaction = await Transaction.findOne({
-      where: { hash },
-      attributes: ['fee'],
-    });
-    if (transaction) return transaction.fee;
-
-    return this.getTransactionFeeFromApi(hash);
+    try {
+      const transaction = await Transaction.findOne({
+        where: { hash },
+        attributes: ['fee'],
+      });
+      if (transaction) return transaction.fee;
+  
+      return this.getTransactionFeeFromApi(hash);
+    } catch (error) {
+      throw ErrorHandler.handleCustomError('GET_TRANSACTION_FEE_ERROR', error, { hash });
+    }
   }
 
   /**
@@ -208,41 +230,45 @@ export class TransactionService {
   async getTransactionFeeFromApi(hash: string) {
     const internalTransactions = await this.etherscanService.fetchIntTxByHash(hash);
     if (!internalTransactions.length) {
-      throw 'TRANSACTION_NOT_FOUND';
+      throw ErrorHandler.handleCustomError('TRANSACTION_NOT_FOUND', {}, { hash }, 400);
     }
     const internalTransaction  = internalTransactions[0];
     if (internalTransaction.isError !== '0') {
-      throw 'TRANSACTION_FAILED'
+      throw ErrorHandler.handleCustomError('TRANSACTION_WAS_FAILED', {}, { hash }, 400);
     }
 
     const blockNumber = Number(internalTransaction.blockNumber);
     const transferTransactions = await this.etherscanService.fetchTransferTxs(blockNumber, blockNumber);
-    const transaction = transferTransactions.find(tx => tx.hash === hash);
+    const transactionWithFee = await this.mapTransactionsWithFee(transferTransactions);
+    const transaction = transactionWithFee.find(tx => tx.hash === hash);
     if (!transaction) {
-      throw 'TRANSACTION_NOT_FOUND';
+      throw ErrorHandler.handleCustomError('TRANSACTION_NOT_FOUND', {}, { hash }, 400);
     }
-    const transactionWithFee = await this.mapTransactionWithFee(transaction);
-    return transactionWithFee.fee;
+    return transaction.fee;
   }
 
   async backfill(startTime: string, endTime: string) {
-    const startBlock = await this.etherscanService.getBlockNumberFromTimestamp(startTime);
-    const endBlock = await this.etherscanService.getBlockNumberFromTimestamp(endTime);
-
-    const batchSize = 10000;
-    
-    const numBatches = Math.ceil((endBlock - startBlock) / batchSize);
-
-    for (let i = 0; i < numBatches; i++) {
-      const batchStart = startBlock + i * batchSize;
-      const batchEnd = Math.min(startBlock + (i + 1) * batchSize - 1, endBlock);
+    try {
+      const startBlock = await this.etherscanService.getBlockNumberFromTimestamp(startTime);
+      const endBlock = await this.etherscanService.getBlockNumberFromTimestamp(endTime);
+  
+      const batchSize = 2000;
       
-      const message = { startBlock: batchStart, endBlock: batchEnd };
-      await this.rabbitMQService.sendMessage(this.queueName, message);
-      console.log({
-        message: 'backfill',
-        details: { batch: `${i + 1}/${numBatches}`, message }
-      });
+      const numBatches = Math.ceil((endBlock - startBlock) / batchSize);
+  
+      for (let i = 0; i < numBatches; i++) {
+        const batchStart = startBlock + i * batchSize;
+        const batchEnd = Math.min(startBlock + (i + 1) * batchSize - 1, endBlock);
+        
+        const message = { startBlock: batchStart, endBlock: batchEnd };
+        await this.rabbitMQService.sendMessage(this.queueName, message);
+        console.log({
+          message: 'backfill',
+          details: { batch: `${i + 1}/${numBatches}`, message }
+        });
+      }
+    } catch (error) {
+      throw ErrorHandler.handleCustomError('BACKFILL_ERROR', error, { startTime, endTime });
     }
   }
 }
